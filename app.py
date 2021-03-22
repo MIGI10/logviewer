@@ -38,10 +38,11 @@ def render_template(name, *args, **kwargs):
 
 app.render_template = render_template
 
+db_name = os.getenv("MONGO_DB_NAME")
 
 @app.listener("before_server_start")
 async def init(app, loop):
-    app.db = AsyncIOMotorClient(os.getenv("MONGO_URI")).modmail_bot
+    app.db = AsyncIOMotorClient(os.getenv("MONGO_URI"))[db_name]
     app.session = aiohttp.ClientSession(loop=loop)
 
 @app.exception(NotFound)
