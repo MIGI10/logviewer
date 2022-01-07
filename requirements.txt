@@ -22,3 +22,4 @@ six==1.16.0; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3
 ujson==4.0.2; sys_platform != 'win32' and implementation_name == 'cpython'
 uvloop==0.15.2; sys_platform != 'win32' and implementation_name == 'cpython'
 websockets==9.1; python_full_version >= '3.6.1'
+requests==2.26.0
