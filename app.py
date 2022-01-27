@@ -68,15 +68,22 @@ async def oauth_check(request, document, key):
 
         member = requests.get('https://discord.com/api/v9/users/@me/guilds/739552045123764275/member', headers=headers)
         member = member.json()
-        
-        if '822253899700371488' not in member["roles"]:
-            if document["title"] == "minecraft" and '771566558899994645' in member["roles"]:
-                pass
-            else:
-                return "403"
+
+        if 'roles' not in member:
+            return "403"
 
         if '739552527288107109' not in member["roles"] and document["title"] == "admin":
             return "403"
+        
+        if '822253899700371488' not in member["roles"]:
+            if '739552877911212144' in member["roles"]:
+                pass
+            elif document["title"] == "minecraft" and '771566558899994645' in member["roles"]:
+                pass
+            elif document["title"] == "rust" and '933073057453588580' in member["roles"]:
+                pass
+            else:
+                return "403"
 
         return None
 
