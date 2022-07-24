@@ -2,11 +2,12 @@ __version__ = "1.1"
 
 import os
 import requests
+import math
 
 
 from motor.motor_asyncio import AsyncIOMotorClient
 from sanic import Sanic, response
-from sanic.exceptions import abort, NotFound
+from sanic.exceptions import NotFound, Forbidden, SanicException
 from jinja2 import Environment, FileSystemLoader
 
 from core.models import LogEntry
@@ -35,6 +36,9 @@ def render_template(name, *args, **kwargs):
 
 async def oauth_check(request, document, key):
 
+    if "raw" in request.path:
+        key = key + "@"
+    
     redirect_uri = os.getenv("OAUTH_URI") + "&state=" + key
 
     if request.query_args:
@@ -61,29 +65,33 @@ async def oauth_check(request, document, key):
             'authorization': oauth["token_type"] + ' ' + oauth["access_token"]
         }
 
-        user = requests.get('https://discord.com/api/v9/users/@me', headers=headers)
-        user = user.json()
-
-        print("{}#{} with ID {} accessing site".format(user["username"], user["discriminator"], user["id"]))
-
         member = requests.get('https://discord.com/api/v9/users/@me/guilds/739552045123764275/member', headers=headers)
         member = member.json()
+        print(member)
+
+        if 'user' not in member:
+            user = requests.get('https://discord.com/api/v9/users/@me', headers=headers)
+            user = user.json()
+            print(user)
+            print("---- {}#{} with ID {} accessing site".format(user["username"], user["discriminator"], user["id"]))
+        else:
+            print("---- {}#{} with ID {} accessing site".format(member["user"]["username"], member["user"]["discriminator"], member["user"]["id"]))
+
+        if 'global' in member:
+            print("---- Ratelimit by Discord API")
+            return "Retry after " + str(math.ceil(member["retry_after"])) + " seconds"
 
         if 'roles' not in member:
-            return "403"
+            print("---- User not in guild")
+            return "You're not a server member"
 
-        if '739552527288107109' not in member["roles"] and document["title"] == "admin":
-            return "403"
-        
-        if '822253899700371488' not in member["roles"]:
-            if '739552877911212144' in member["roles"]:
-                pass
-            elif document["title"] == "minecraft" and '771566558899994645' in member["roles"]:
-                pass
-            elif document["title"] == "rust" and '933073057453588580' in member["roles"]:
-                pass
-            else:
-                return "403"
+        if '822253899700371488' not in member["roles"] and '739552877911212144' not in member["roles"]:
+            print("---- User without Discord/Twitch staff role")
+            return "You're not a staff member"
+
+        if document["title"] == "admin" and '739552527288107109' not in member["roles"]:
+            print("---- Admin ticket, user without admin role")
+            return "Admin ticket, you're not an admin/manager"
 
         return None
 
@@ -111,10 +119,21 @@ async def index(request):
 @app.get("/return")
 async def redirect_to_log(request):
 
+    global prefix
+
     if not request.query_args:
         return render_template("index")
+
+    key = request.query_args[1][1]
+
+    if "@" in key or "%40" in key:
+        prefix = prefix + "/raw"
+        if "@" in key:
+            key = key[:-1]
+        else:
+            key = key[:-3]
     
-    return response.redirect('http://' + request.host + prefix + '/' + request.query_args[1][1] + '?code=' + request.query_args[0][1])
+    return response.redirect('http://' + request.host + prefix + '/' + key + '?code=' + request.query_args[0][1])
 
 
 @app.get(prefix + "/raw/<key>")
@@ -123,17 +142,17 @@ async def get_raw_logs_file(request, key):
     document = await app.ctx.db.logs.find_one({"key": key})
 
     if document is None:
-        return abort(404)
+        raise NotFound()
 
     action = await oauth_check(request, document, key)
 
     if action is not None:
-        if action == "404":
-            abort(404)
-        elif action == "403":
-            abort(403)
+        if "discord.com" in action:
+            return response.redirect(action)
+        elif "Retry after" in action:
+            raise SanicException(status_code=429, message=action)
         else:
-            response.redirect(action)
+            raise Forbidden(message=action)
 
     log_entry = LogEntry(app, document)
 
@@ -146,17 +165,17 @@ async def get_logs_file(request, key):
     document = await app.ctx.db.logs.find_one({"key": key})
 
     if document is None:
-        return abort(404)
+        raise NotFound()
 
     action = await oauth_check(request, document, key)
 
     if action is not None:
-        if action == "404":
-            return abort(404)
-        elif action == "403":
-            return abort(403)
-        else:
+        if "discord.com" in action:
             return response.redirect(action)
+        elif "Retry after" in action:
+            raise SanicException(status_code=429, message=action)
+        else:
+            raise Forbidden(message=action)
 
     log_entry = LogEntry(app, document)
 
