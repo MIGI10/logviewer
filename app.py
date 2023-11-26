@@ -93,11 +93,11 @@ async def oauth_check(request, document, key):
             print("---- Discord ticket, user without staff role")
             return "Discord ticket, you're not a Discord staff member"
         
-        if document["title"] == "twitch" and ('739552877911212144' not in member["roles"] and '739552527288107109' not in member["roles"]):
+        if document["title"] == "twitch" and ('739552877911212144' not in member["roles"] and '922615705503940659' not in member["roles"]):
             print("---- Twitch ticket, user without twitch/manager role")
             return "Twitch ticket, you're not a Twitch staff member or an admin/manager"
         
-        if document["title"] == "admin" and '739552527288107109' not in member["roles"]:
+        if document["title"] == "admin" and '922615705503940659' not in member["roles"]:
             print("---- Admin ticket, user without admin role")
             return "Admin ticket, you're not an admin/manager"
 
